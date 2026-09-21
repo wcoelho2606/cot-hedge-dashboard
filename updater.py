@@ -1,29 +1,48 @@
-import urllib.request
-import zipfile
-import io
 import pandas as pd
 import json
 import datetime
+import requests
+import io
+import zipfile
 
 def fetch_and_process_cot():
-    # URL do relatório oficial da CFTC para dados financeiros (Traders in Financial Futures)
-    url = "https://www.cftc.gov/files/dea/history/fut_fin_txt_2026.zip" # Atualizado dinamicamente
+    current_year = datetime.datetime.now().year
     
-    print("Baixando dados oficiais da CFTC...")
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    req = urllib.request.Request(url, headers=headers)
+    # URL do relatório financeiro anual da CFTC
+    url_zip = f"https://www.cftc.gov/files/dea/history/fut_fin_txt_{current_year}.zip"
+    url_weekly = "https://www.cftc.gov/dea/new_fit/fin_com_txt.txt"
     
-    try:
-        with urllib.request.urlopen(req) as response:
-            zip_file = zipfile.ZipFile(io.BytesIO(response.read()))
-            filename = zip_file.namelist()[0]
-            df = pd.read_csv(zip_file.open(filename), low_memory=False)
-    except Exception as e:
-        print(f"Erro ao baixar dados do ano corrente, tentando relatório semanal padrão: {e}")
-        url = "https://www.cftc.gov/dea/new_fit/fin_com_txt.txt"
-        df = pd.read_csv(url, low_memory=False)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
 
-    # Mapeamento dos contratos para as moedas do Dashboard
+    df = None
+    
+    print(f"Tentando descarregar dados anuais de {current_year}...")
+    try:
+        res = requests.get(url_zip, headers=headers, timeout=30)
+        if res.status_code == 200:
+            z = zipfile.ZipFile(io.BytesIO(res.content))
+            filename = z.namelist()[0]
+            df = pd.read_csv(z.open(filename), low_memory=False)
+            print("Sucesso ao descarregar ficheiro ZIP anual!")
+    except Exception as e:
+        print(f"Aviso na tentativa ZIP: {e}")
+
+    if df is None:
+        print("A descarregar relatório semanal padrão...")
+        try:
+            res = requests.get(url_weekly, headers=headers, timeout=30)
+            if res.status_code == 200:
+                df = pd.read_csv(io.StringIO(res.text), low_memory=False)
+                print("Sucesso ao descarregar relatório semanal!")
+        except Exception as e:
+            print(f"Erro no download semanal: {e}")
+
+    if df is None:
+        raise Exception("Não foi possível obter dados da CFTC por nenhuma das fontes.")
+
+    # Mapeamento das moedas
     currency_map = {
         'CANADIAN DOLLAR': 'CAD',
         'SWISS FRANC': 'CHF',
@@ -35,43 +54,42 @@ def fetch_and_process_cot():
         'U.S. DOLLAR INDEX': 'USD'
     }
 
-    # Limpeza de colunas
     df.columns = df.columns.str.strip()
-    
-    # Filtrar apenas ativos de interesse
-    df['Market_Name'] = df['Market_and_Exchange_Names'].str.upper()
+    df['Market_Name'] = df['Market_and_Exchange_Names'].astype(str).str.upper()
     
     parsed_data = {}
-    
-    # Processar cada moeda
+
     for name_pattern, code in currency_map.items():
         sub_df = df[df['Market_Name'].str.contains(name_pattern, na=False)].copy()
         
         if not sub_df.empty:
-            # Ordenar por data
-            sub_df['Report_Date_as_MM_DD_YYYY'] = pd.to_datetime(sub_df['Report_Date_as_MM_DD_YYYY'])
-            sub_df = sub_df.sort_values(by='Report_Date_as_MM_DD_YYYY', ascending=True)
+            date_col = 'Report_Date_as_MM_DD_YYYY' if 'Report_Date_as_MM_DD_YYYY' in sub_df.columns else sub_df.columns[2]
+            sub_df[date_col] = pd.to_datetime(sub_df[date_col])
+            sub_df = sub_df.sort_values(by=date_col, ascending=True)
             
-            # Posições de Fundos Hedge (Leveraged Funds / Non-Commercial)
-            # Calculando Posição Líquida (Comprados - Vendidos) em milhares/contratos
+            # Cálculo do Net Positioning (Comprados - Vendidos)
             if 'Lev_Money_Positions_Long_All' in sub_df.columns:
-                sub_df['Net_Pos'] = (sub_df['Lev_Money_Positions_Long_All'] - sub_df['Lev_Money_Positions_Short_All']) / 1000.0
+                sub_df['Net_Pos'] = (pd.to_numeric(sub_df['Lev_Money_Positions_Long_All'], errors='coerce') - 
+                                     pd.to_numeric(sub_df['Lev_Money_Positions_Short_All'], errors='coerce')) / 1000.0
+            elif 'NonComm_Positions_Long_All' in sub_df.columns:
+                sub_df['Net_Pos'] = (pd.to_numeric(sub_df['NonComm_Positions_Long_All'], errors='coerce') - 
+                                     pd.to_numeric(sub_df['NonComm_Positions_Short_All'], errors='coerce')) / 1000.0
             else:
-                # Fallback para relatórios Legacy
-                sub_df['Net_Pos'] = (sub_df['NonComm_Positions_Long_All'] - sub_df['NonComm_Positions_Short_All']) / 1000.0
-            
+                sub_df['Net_Pos'] = 0.0
+
             history = []
             for _, row in sub_df.iterrows():
-                date_str = row['Report_Date_as_MM_DD_YYYY'].strftime('%d/%m/%Y')
-                val = round(float(row['Net_Pos']), 1)
-                history.append({'date': date_str, 'val': val})
+                if pd.notnull(row['Net_Pos']):
+                    date_str = row[date_col].strftime('%d/%m/%Y')
+                    val = round(float(row['Net_Pos']), 1)
+                    history.append({'date': date_str, 'val': val})
             
             parsed_data[code] = history
 
-    # Gerar estrutura final do JSON
-    latest_date = list(parsed_data.values())[0][-1]['date'] if parsed_data else datetime.date.today().strftime('%d/%m/%Y')
+    latest_date = datetime.date.today().strftime('%d/%m/%Y')
+    if parsed_data and len(list(parsed_data.values())[0]) > 0:
+        latest_date = list(parsed_data.values())[0][-1]['date']
     
-    # Calcular resumo atual e anterior
     current_summary = {}
     previous_summary = {}
     diff_summary = {}
@@ -100,7 +118,6 @@ def fetch_and_process_cot():
         "history": parsed_data
     }
 
-    # Salvar data.json
     with open("data.json", "w", encoding="utf-8") as f:
         json.dump(json_output, f, indent=2, ensure_ascii=False)
         
