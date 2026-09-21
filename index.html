@@ -1,1 +1,259 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Posições Líquidas dos Fundos Hedge (COT)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-color: #0f172a;
+            --border-color: #e2e8f0;
+            --pos-color: #16a34a;
+            --neg-color: #dc2626;
+            --header-bg: #1e293b;
+            --header-text: #ffffff;
+        }
 
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 1.5rem;
+            color: var(--header-bg);
+        }
+
+        .period-info {
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #475569;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #f1f5f9;
+            font-weight: 600;
+        }
+
+        .bg-pos { background-color: rgba(22, 163, 74, 0.15); color: var(--pos-color); font-weight: bold; }
+        .bg-neg { background-color: rgba(220, 38, 38, 0.15); color: var(--neg-color); font-weight: bold; }
+
+        .currency-selector {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .currency-btn {
+            padding: 6px 14px;
+            border: 1px solid var(--border-color);
+            background: #fff;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .currency-btn.active {
+            background: var(--header-bg);
+            color: var(--header-text);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
+
+        .info-box {
+            font-size: 0.85rem;
+            line-height: 1.5;
+            color: #334155;
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #3b82f6;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+        <h1>Dashboard - Posições Líquidas dos Fundos Hedge (COT CFTC)</h1>
+        <div id="period" class="period-info">A carregar dados...</div>
+
+        <!-- Tabela Resumo -->
+        <div style="overflow-x:auto;">
+            <table id="summaryTable">
+                <thead>
+                    <tr id="headerRow"><th>Métrica</th></tr>
+                </thead>
+                <tbody>
+                    <tr id="currRow"><td><strong>Valor Atual</strong></td></tr>
+                    <tr id="prevRow"><td><strong>Valor Anterior</strong></td></tr>
+                    <tr id="diffRow"><td><strong>Diff</strong></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="currency-selector" id="currencySelector"></div>
+        <div class="chart-container">
+            <canvas id="cotChart"></canvas>
+        </div>
+    </div>
+
+    <div class="card info-box">
+        <strong>LINHA DO ZERO:</strong><br>
+        • <span style="color:var(--pos-color); font-weight:bold;">Posições Líquidas Positivas:</span> Fundos Hedge estão COMPRADOS na Moeda.<br>
+        • <span style="color:var(--neg-color); font-weight:bold;">Posições Líquidas Negativas:</span> Fundos Hedge estão VENDIDOS na Moeda.<br><br>
+        <em>Dados atualizados automaticamente semanalmente via CFTC.</em>
+    </div>
+</div>
+
+<script>
+    let cotData = null;
+    let selectedCurrency = 'AUD';
+    let chartInstance = null;
+
+    async function init() {
+        try {
+            const res = await fetch('./data.json?cache_bypass=' + new Date().getTime());
+            if (!res.ok) throw new Error("Aguardando geração do data.json");
+            cotData = await res.json();
+            
+            document.getElementById('period').innerText = cotData.period || 'Dados do Relatório CFTC';
+            
+            renderTable();
+            renderButtons();
+            renderChart(selectedCurrency);
+        } catch (e) {
+            document.getElementById('period').innerText = "Erro ao carregar dados do data.json. Execute o robô na aba Actions.";
+            console.error(e);
+        }
+    }
+
+    function renderTable() {
+        const currencies = Object.keys(cotData.current);
+        const headerRow = document.getElementById('headerRow');
+        const currRow = document.getElementById('currRow');
+        const prevRow = document.getElementById('prevRow');
+        const diffRow = document.getElementById('diffRow');
+
+        headerRow.innerHTML = '<th>Métrica</th>';
+        currRow.innerHTML = '<td><strong>Valor Atual</strong></td>';
+        prevRow.innerHTML = '<td><strong>Valor Anterior</strong></td>';
+        diffRow.innerHTML = '<td><strong>Diff</strong></td>';
+
+        currencies.forEach(c => {
+            headerRow.innerHTML += `<th>${c}</th>`;
+            
+            const curr = cotData.current[c];
+            const prev = cotData.previous[c];
+            const diff = cotData.diff[c];
+
+            currRow.innerHTML += `<td class="${curr >= 0 ? 'bg-pos' : 'bg-neg'}">${curr}</td>`;
+            prevRow.innerHTML += `<td class="${prev >= 0 ? 'bg-pos' : 'bg-neg'}">${prev}</td>`;
+            diffRow.innerHTML += `<td class="${diff >= 0 ? 'bg-pos' : 'bg-neg'}">${diff > 0 ? '+' + diff : diff}</td>`;
+        });
+    }
+
+    function renderButtons() {
+        const selector = document.getElementById('currencySelector');
+        selector.innerHTML = '';
+        
+        Object.keys(cotData.history).forEach(c => {
+            const btn = document.createElement('button');
+            btn.className = `currency-btn ${c === selectedCurrency ? 'active' : ''}`;
+            btn.innerText = c;
+            btn.onclick = () => {
+                selectedCurrency = c;
+                document.querySelectorAll('.currency-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                renderChart(c);
+            };
+            selector.appendChild(btn);
+        });
+    }
+
+    function renderChart(currency) {
+        const ctx = document.getElementById('cotChart').getContext('2d');
+        const history = cotData.history[currency] || [];
+
+        const labels = history.map(h => h.date);
+        const values = history.map(h => h.val);
+
+        if (chartInstance) {
+            chartInstance.destroy();
+        }
+
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: `Posição Líquida - ${currency}`,
+                    data: values,
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        grid: {
+                            color: (context) => context.tick.value === 0 ? '#000' : '#e2e8f0',
+                            lineWidth: (context) => context.tick.value === 0 ? 2 : 1
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html>
