@@ -40,16 +40,16 @@ def fetch_and_process_cot():
     if df is None:
         raise Exception("Não foi possível obter dados da CFTC.")
 
-    # Mapeamento oficial de todas as moedas principais + USD Index
+    # Mapeamento expandido para encontrar todas as 8 moedas no arquivo da CFTC
     currency_map = {
-        'AUSTRALIAN DOLLAR': 'AUD',
-        'CANADIAN DOLLAR': 'CAD',
-        'SWISS FRANC': 'CHF',
-        'EURO FX': 'EUR',
-        'BRITISH POUND STERLING': 'GBP',
-        'JAPANESE YEN': 'JPY',
-        'NEW ZEALAND DOLLAR': 'NZD',
-        'U.S. DOLLAR INDEX': 'USD'
+        'AUD': ['AUSTRALIAN DOLLAR', 'AUSTRALIAN'],
+        'CAD': ['CANADIAN DOLLAR', 'CANADIAN'],
+        'CHF': ['SWISS FRANC', 'SWISS'],
+        'EUR': ['EURO FX', 'EURO'],
+        'GBP': ['POUND STERLING', 'BRITISH POUND', 'POUND'],
+        'JPY': ['JAPANESE YEN', 'YEN'],
+        'NZD': ['NEW ZEALAND DOLLAR', 'NEW ZEALAND'],
+        'USD': ['U.S. DOLLAR INDEX', 'USD INDEX', 'DOLLAR INDEX']
     }
 
     df.columns = df.columns.str.strip()
@@ -57,8 +57,13 @@ def fetch_and_process_cot():
     
     parsed_data = {}
 
-    for name_pattern, code in currency_map.items():
-        sub_df = df[df['Market_Name'].str.contains(name_pattern, na=False)].copy()
+    for code, patterns in currency_map.items():
+        sub_df = pd.DataFrame()
+        for pattern in patterns:
+            matched = df[df['Market_Name'].str.contains(pattern, na=False)].copy()
+            if not matched.empty:
+                sub_df = matched
+                break
         
         if not sub_df.empty:
             date_col = 'Report_Date_as_MM_DD_YYYY' if 'Report_Date_as_MM_DD_YYYY' in sub_df.columns else sub_df.columns[2]
@@ -119,7 +124,7 @@ def fetch_and_process_cot():
     with open("data.json", "w", encoding="utf-8") as f:
         json.dump(json_output, f, indent=2, ensure_ascii=False)
         
-    print("data.json atualizado com todas as moedas!")
+    print("data.json atualizado com todas as 8 moedas!")
 
 if __name__ == "__main__":
     fetch_and_process_cot()
