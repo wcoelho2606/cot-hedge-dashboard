@@ -54,7 +54,7 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
             font-size: 0.9rem;
         }
 
@@ -149,8 +149,11 @@
 
 <script>
     let cotData = null;
-    let selectedCurrency = 'CAD';
+    let selectedCurrency = 'AUD';
     let chartInstance = null;
+
+    // Ordem das moedas
+    const currencyOrder = ['AUD', 'CAD', 'CHF', 'EUR', 'GBP', 'JPY', 'NZD', 'USD'];
 
     async function init() {
         try {
@@ -170,7 +173,6 @@
     }
 
     function renderTable() {
-        const currencies = Object.keys(cotData.current);
         const headerRow = document.getElementById('headerRow');
         const currRow = document.getElementById('currRow');
         const prevRow = document.getElementById('prevRow');
@@ -181,7 +183,10 @@
         prevRow.innerHTML = '<td><strong>Valor Anterior</strong></td>';
         diffRow.innerHTML = '<td><strong>Diff</strong></td>';
 
-        currencies.forEach(c => {
+        const availableCurrencies = Object.keys(cotData.current);
+        const sortedCurrencies = currencyOrder.filter(c => availableCurrencies.includes(c));
+
+        sortedCurrencies.forEach(c => {
             headerRow.innerHTML += `<th>${c}</th>`;
             
             const curr = cotData.current[c];
@@ -198,7 +203,10 @@
         const selector = document.getElementById('currencySelector');
         selector.innerHTML = '';
         
-        Object.keys(cotData.history).forEach(c => {
+        const availableCurrencies = Object.keys(cotData.history);
+        const sortedCurrencies = currencyOrder.filter(c => availableCurrencies.includes(c));
+
+        sortedCurrencies.forEach(c => {
             const btn = document.createElement('button');
             btn.className = `currency-btn ${c === selectedCurrency ? 'active' : ''}`;
             btn.innerText = c;
@@ -228,7 +236,7 @@
             data: {
                 labels: labels,
                 datasets: [{
-                    label: `Posição Líquida - ${currency}`,
+                    label: `Posição Líquida dos Fundos Hedge - ${currency}`,
                     data: values,
                     borderColor: '#2563eb',
                     backgroundColor: 'rgba(37, 99, 235, 0.1)',
@@ -245,7 +253,7 @@
                         suggestedMin: -10,
                         suggestedMax: 10,
                         grid: {
-                            color: (context) => context.tick.value === 0 ? '#dc2626' : '#e2e8f0',
+                            color: (context) => context.tick.value === 0 ? '#dc2626' : '#e2e8f0', // Linha do ZERO em Vermelho
                             lineWidth: (context) => context.tick.value === 0 ? 3 : 1
                         }
                     }
