@@ -95,7 +95,7 @@
 
         .chart-container {
             position: relative;
-            height: 400px;
+            height: 420px;
             width: 100%;
         }
 
@@ -149,7 +149,7 @@
 
 <script>
     let cotData = null;
-    let selectedCurrency = 'AUD';
+    let selectedCurrency = 'CAD';
     let chartInstance = null;
 
     async function init() {
@@ -164,7 +164,7 @@
             renderButtons();
             renderChart(selectedCurrency);
         } catch (e) {
-            document.getElementById('period').innerText = "Erro ao carregar dados do data.json. Execute o robô na aba Actions.";
+            document.getElementById('period').innerText = "Erro ao carregar dados do data.json.";
             console.error(e);
         }
     }
@@ -242,9 +242,11 @@
                 maintainAspectRatio: false,
                 scales: {
                     y: {
+                        suggestedMin: -10,
+                        suggestedMax: 10,
                         grid: {
-                            color: (context) => context.tick.value === 0 ? '#000' : '#e2e8f0',
-                            lineWidth: (context) => context.tick.value === 0 ? 2 : 1
+                            color: (context) => context.tick.value === 0 ? '#dc2626' : '#e2e8f0',
+                            lineWidth: (context) => context.tick.value === 0 ? 3 : 1
                         }
                     }
                 }
