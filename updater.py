@@ -8,7 +8,6 @@ import zipfile
 def fetch_and_process_cot():
     current_year = datetime.datetime.now().year
     
-    # URL do relatório financeiro anual da CFTC
     url_zip = f"https://www.cftc.gov/files/dea/history/fut_fin_txt_{current_year}.zip"
     url_weekly = "https://www.cftc.gov/dea/new_fit/fin_com_txt.txt"
     
@@ -17,39 +16,38 @@ def fetch_and_process_cot():
     }
 
     df = None
+    print(f"Buscando dados oficiais da CFTC ({current_year})...")
     
-    print(f"Tentando descarregar dados anuais de {current_year}...")
     try:
         res = requests.get(url_zip, headers=headers, timeout=30)
         if res.status_code == 200:
             z = zipfile.ZipFile(io.BytesIO(res.content))
             filename = z.namelist()[0]
             df = pd.read_csv(z.open(filename), low_memory=False)
-            print("Sucesso ao descarregar ficheiro ZIP anual!")
+            print("Dados anuais (ZIP) baixados com sucesso!")
     except Exception as e:
-        print(f"Aviso na tentativa ZIP: {e}")
+        print(f"Aviso no arquivo ZIP: {e}")
 
     if df is None:
-        print("A descarregar relatório semanal padrão...")
         try:
             res = requests.get(url_weekly, headers=headers, timeout=30)
             if res.status_code == 200:
                 df = pd.read_csv(io.StringIO(res.text), low_memory=False)
-                print("Sucesso ao descarregar relatório semanal!")
+                print("Relatório semanal baixado com sucesso!")
         except Exception as e:
             print(f"Erro no download semanal: {e}")
 
     if df is None:
-        raise Exception("Não foi possível obter dados da CFTC por nenhuma das fontes.")
+        raise Exception("Não foi possível obter dados da CFTC.")
 
-    # Mapeamento das moedas
+    # Mapeamento oficial de todas as moedas principais + USD Index
     currency_map = {
+        'AUSTRALIAN DOLLAR': 'AUD',
         'CANADIAN DOLLAR': 'CAD',
         'SWISS FRANC': 'CHF',
+        'EURO FX': 'EUR',
         'BRITISH POUND STERLING': 'GBP',
         'JAPANESE YEN': 'JPY',
-        'EURO FX': 'EUR',
-        'AUSTRALIAN DOLLAR': 'AUD',
         'NEW ZEALAND DOLLAR': 'NZD',
         'U.S. DOLLAR INDEX': 'USD'
     }
@@ -67,7 +65,7 @@ def fetch_and_process_cot():
             sub_df[date_col] = pd.to_datetime(sub_df[date_col])
             sub_df = sub_df.sort_values(by=date_col, ascending=True)
             
-            # Cálculo do Net Positioning (Comprados - Vendidos)
+            # Posições Líquidas em milhares (Long - Short) / 1000
             if 'Lev_Money_Positions_Long_All' in sub_df.columns:
                 sub_df['Net_Pos'] = (pd.to_numeric(sub_df['Lev_Money_Positions_Long_All'], errors='coerce') - 
                                      pd.to_numeric(sub_df['Lev_Money_Positions_Short_All'], errors='coerce')) / 1000.0
@@ -121,7 +119,7 @@ def fetch_and_process_cot():
     with open("data.json", "w", encoding="utf-8") as f:
         json.dump(json_output, f, indent=2, ensure_ascii=False)
         
-    print("data.json atualizado com sucesso!")
+    print("data.json atualizado com todas as moedas!")
 
 if __name__ == "__main__":
     fetch_and_process_cot()
