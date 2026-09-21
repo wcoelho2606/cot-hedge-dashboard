@@ -2,9 +2,8 @@ name: CFTC COT Data Auto-Updater
 
 on:
   schedule:
-    # Executa todas as sextas-feiras às 20:30 UTC (17:30 Horário de Brasília)
     - cron: '30 20 * * 5'
-  workflow_dispatch: # Permite rodar manualmente a qualquer momento via botão no GitHub
+  workflow_dispatch:
 
 jobs:
   build-and-update:
@@ -21,7 +20,7 @@ jobs:
       - name: Instalar Dependências
         run: |
           python -m pip install --upgrade pip
-          pip install pandas
+          pip install pandas requests
 
       - name: Executar Script de Atualização
         run: python updater.py
