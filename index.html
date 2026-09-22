@@ -226,6 +226,31 @@
             </div>
 
         </div>
+
+        <!-- Spread Between Currencies Card -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
+            <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
+                <div>
+                    <h3 class="text-base font-bold text-gray-900 dark:text-white">Spread entre Moedas (Força Relativa)</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Diferença entre a posição líquida das duas moedas — útil para analisar um par cruzado (ex.: AUD/JPY)</p>
+                </div>
+
+                <div class="flex items-center gap-2 text-xs font-medium">
+                    <select id="spread-base-select" onchange="renderSpreadChart()" class="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-2.5 py-1.5 text-gray-700 dark:text-gray-200">
+                    </select>
+                    <span class="text-gray-400 font-bold">−</span>
+                    <select id="spread-quote-select" onchange="renderSpreadChart()" class="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-2.5 py-1.5 text-gray-700 dark:text-gray-200">
+                    </select>
+                </div>
+            </div>
+
+            <div id="spread-summary" class="text-xs text-gray-600 dark:text-gray-300 mb-3"></div>
+
+            <div class="relative w-full h-[300px]">
+                <canvas id="spreadChart"></canvas>
+            </div>
+        </div>
+
     </main>
 
     <!-- Modal: GitHub Actions & Automation Documentation -->
@@ -315,6 +340,8 @@ jobs:
         let currentTimeframe = 'ALL';
         let cotData = null;
         let chartInstance = null;
+        let spreadChartInstance = null;
+        const currencyOrder = ['AUD', 'CAD', 'CHF', 'EUR', 'GBP', 'JPY', 'NZD', 'USD'];
 
         // Dados Simulados/Fallback (usados quando data.json não está acessível)
         // Segue o MESMO formato do data.json real: { period, current, previous, diff, history }
@@ -440,6 +467,8 @@ jobs:
             renderCurrencyControls();
             renderHistoryTable();
             renderChart();
+            populateSpreadSelectors();
+            renderSpreadChart();
         }
 
         // Render Currency Summary Row Overview
@@ -636,6 +665,140 @@ jobs:
             });
         }
 
+        // Preenche os dois seletores de moeda do card de Spread,
+        // usando apenas moedas que realmente têm histórico no data.json.
+        // Padrão inicial: AUD (base) - JPY (contra).
+        function populateSpreadSelectors() {
+            const baseSelect = document.getElementById('spread-base-select');
+            const quoteSelect = document.getElementById('spread-quote-select');
+
+            // Já populado nesta sessão: não sobrescreve a escolha do usuário
+            if (baseSelect.options.length > 0) return;
+
+            const available = currencyOrder.filter(c => (cotData.history[c] || []).length > 0);
+
+            available.forEach(code => {
+                const optBase = document.createElement('option');
+                optBase.value = code;
+                optBase.innerText = code;
+                baseSelect.appendChild(optBase);
+
+                const optQuote = document.createElement('option');
+                optQuote.value = code;
+                optQuote.innerText = code;
+                quoteSelect.appendChild(optQuote);
+            });
+
+            baseSelect.value = available.includes('AUD') ? 'AUD' : available[0];
+            quoteSelect.value = available.includes('JPY') ? 'JPY' : (available[1] || available[0]);
+        }
+
+        // Calcula e desenha o spread (posição líquida da base menos a da contra)
+        // data a data, alinhando pelas datas em comum entre as duas séries.
+        function renderSpreadChart() {
+            if (!cotData) return;
+
+            const baseCode = document.getElementById('spread-base-select').value;
+            const quoteCode = document.getElementById('spread-quote-select').value;
+            if (!baseCode || !quoteCode) return;
+
+            const baseHistory = cotData.history[baseCode] || [];
+            const quoteHistory = cotData.history[quoteCode] || [];
+
+            const quoteMap = {};
+            quoteHistory.forEach(item => { quoteMap[item.date] = item.val; });
+
+            const spreadSeries = baseHistory
+                .filter(item => quoteMap[item.date] !== undefined)
+                .map(item => ({
+                    date: item.date,
+                    spread: parseFloat((item.val - quoteMap[item.date]).toFixed(1))
+                }));
+
+            const labels = spreadSeries.map(item => item.date);
+            const values = spreadSeries.map(item => item.spread);
+
+            const summaryEl = document.getElementById('spread-summary');
+            if (spreadSeries.length > 0) {
+                const latest = spreadSeries[spreadSeries.length - 1];
+                const leaning = latest.spread >= 0
+                    ? `<span class="text-emerald-600 dark:text-emerald-400 font-semibold">${baseCode} mais forte</span>`
+                    : `<span class="text-rose-600 dark:text-rose-400 font-semibold">${quoteCode} mais forte</span>`;
+                summaryEl.innerHTML = `Spread atual (${baseCode} − ${quoteCode}): <strong>${latest.spread > 0 ? '+' : ''}${latest.spread}K</strong> — ${leaning}`;
+            } else {
+                summaryEl.innerHTML = `Sem datas em comum entre ${baseCode} e ${quoteCode} para calcular o spread.`;
+            }
+
+            const ctx = document.getElementById('spreadChart').getContext('2d');
+            if (spreadChartInstance) {
+                spreadChartInstance.destroy();
+            }
+
+            const isDark = document.documentElement.classList.contains('dark');
+            const gridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
+            const textColor = isDark ? '#9ca3af' : '#4b5563';
+
+            spreadChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `Spread ${baseCode} - ${quoteCode}`,
+                        data: values,
+                        borderColor: '#a855f7',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 5,
+                        pointHoverBackgroundColor: '#a855f7',
+                        tension: 0.25,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index',
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: isDark ? '#1f2937' : '#ffffff',
+                            titleColor: isDark ? '#ffffff' : '#111827',
+                            bodyColor: isDark ? '#cbd5e1' : '#334155',
+                            borderColor: isDark ? '#374151' : '#e2e8f0',
+                            borderWidth: 1,
+                            padding: 10,
+                            displayColors: false,
+                            callbacks: {
+                                label: function(context) {
+                                    const val = context.parsed.y;
+                                    const leaning = val >= 0 ? `${baseCode} mais forte` : `${quoteCode} mais forte`;
+                                    return `Spread: ${val}K (${leaning})`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: gridColor },
+                            ticks: { color: textColor, font: { size: 10 }, maxRotation: 45 }
+                        },
+                        y: {
+                            grid: {
+                                color: (context) => context.tick.value === 0
+                                    ? (isDark ? 'rgba(239, 68, 68, 0.8)' : 'rgba(220, 38, 38, 0.8)')
+                                    : gridColor,
+                                lineWidth: (context) => context.tick.value === 0 ? 1.5 : 1
+                            },
+                            ticks: { color: textColor, font: { size: 10 } }
+                        }
+                    }
+                }
+            });
+        }
+
         // Toggle Theme
         const themeToggleBtn = document.getElementById('theme-toggle');
         const themeIcon = document.getElementById('theme-icon');
@@ -645,6 +808,7 @@ jobs:
             const isDark = document.documentElement.classList.contains('dark');
             themeIcon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
             if (chartInstance) renderChart();
+            if (spreadChartInstance) renderSpreadChart();
         });
 
         // Toggle GitHub Modal
