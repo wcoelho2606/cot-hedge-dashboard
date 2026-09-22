@@ -57,6 +57,16 @@
                     <span id="last-update-tag" class="font-semibold text-gray-700 dark:text-gray-300">Aguardando...</span>
                 </div>
 
+                <div class="hidden md:flex flex-col text-right mr-2">
+                    <span class="text-xs text-gray-400">Próxima Atualização:</span>
+                    <span id="next-update-tag" class="font-semibold text-gray-700 dark:text-gray-300">—</span>
+                </div>
+
+                <span id="header-source-badge" class="hidden sm:inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                    <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                    <span>Verificando...</span>
+                </span>
+
                 <button id="btn-sync" onclick="fetchCOTData()" class="flex items-center space-x-2 px-3 py-1.5 bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-gray-600 rounded-lg text-xs font-semibold transition">
                     <i id="sync-icon" class="fa-solid fa-rotate-right"></i>
                     <span>Sincronizar</span>
@@ -359,6 +369,7 @@ jobs:
             syncIcon.classList.add('fa-spin');
 
             const statusBadge = document.getElementById('data-status-badge');
+            const headerBadge = document.getElementById('header-source-badge');
 
             try {
                 // Carrega o data.json real, gerado pelo updater.py via GitHub Actions
@@ -368,15 +379,54 @@ jobs:
                 cotData = await response.json();
                 statusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span><span>Live Auto Sync</span>`;
                 statusBadge.className = "px-2.5 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-full text-xs font-medium flex items-center gap-1.5";
+
+                headerBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span><span>Dados Reais (data.json)</span>`;
+                headerBadge.className = "hidden sm:inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400";
             } catch (err) {
                 console.warn("data.json não encontrado. Carregando motor de simulação fallback.", err);
                 cotData = generateFallbackData();
                 statusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500"></span><span>Dados Simulação/Fallback</span>`;
                 statusBadge.className = "px-2.5 py-1 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 rounded-full text-xs font-medium flex items-center gap-1.5";
+
+                headerBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span><span>Dados Simulados (fallback)</span>`;
+                headerBadge.className = "hidden sm:inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400";
             } finally {
                 setTimeout(() => syncIcon.classList.remove('fa-spin'), 600);
                 renderDashboard();
             }
+        }
+
+        // Calcula a próxima execução do workflow do GitHub Actions
+        // (cron: '30 20 * * 5' -> toda sexta-feira às 20:30 UTC)
+        function getNextUpdateDate() {
+            const now = new Date();
+            const dayUTC = now.getUTCDay(); // 0=Dom, 1=Seg, ..., 5=Sex, 6=Sáb
+            const targetHourUTC = 20;
+            const targetMinuteUTC = 30;
+
+            let daysUntilFriday = (5 - dayUTC + 7) % 7;
+
+            let next = new Date(Date.UTC(
+                now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
+                targetHourUTC, targetMinuteUTC, 0
+            ));
+            next.setUTCDate(next.getUTCDate() + daysUntilFriday);
+
+            // Se hoje já é sexta-feira e o horário de execução já passou,
+            // a próxima atualização é somente na sexta seguinte
+            if (daysUntilFriday === 0 && now.getTime() > next.getTime()) {
+                next.setUTCDate(next.getUTCDate() + 7);
+            }
+
+            return next;
+        }
+
+        function renderNextUpdate() {
+            const next = getNextUpdateDate();
+            const day = String(next.getUTCDate()).padStart(2, '0');
+            const month = String(next.getUTCMonth() + 1).padStart(2, '0');
+            const year = next.getUTCFullYear();
+            document.getElementById('next-update-tag').innerText = `${day}/${month}/${year} às 20:30 UTC`;
         }
 
         // Render Dashboard Elements
@@ -384,6 +434,7 @@ jobs:
             if (!cotData) return;
 
             document.getElementById('last-update-tag').innerText = cotData.period || '—';
+            renderNextUpdate();
 
             renderOverviewTable();
             renderCurrencyControls();
