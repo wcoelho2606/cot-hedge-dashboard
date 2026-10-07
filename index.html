@@ -4,96 +4,96 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Análise de Posicionamento COT - Fundos Hedge</title>
-    <!-- Bootstrap CSS para estilização e Grid -->
+    <!-- Bootstrap CSS - Mantendo as classes e grid originais do seu projeto -->
     <link href="https://jsdelivr.net" rel="stylesheet">
     <style>
+        /* Restaurando a paleta de cores original escura do seu dashboard */
         body {
-            background-color: #0b0b16;
+            background-color: #0d0e1b;
             color: #ffffff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
         .card {
-            background: #121225;
-            border: 1px solid #252545;
-            border-radius: 10px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            background: #131526;
+            border: 1px solid #1f223f;
+            border-radius: 8px;
         }
-        .text-cyan { color: #00ffcc; }
-        .text-yellow { color: #ffcc00; }
+        .text-cyan { color: #00ffcc !important; }
+        .text-green { color: #00ff00 !important; }
+        .text-red { color: #ff4444 !important; }
         .table-dark-custom {
-            --bs-table-bg: #121225;
-            --bs-table-color: #fff;
-            --bs-table-border-color: #252545;
+            --bs-table-bg: #131526;
+            --bs-table-color: #ffffff;
+            --bs-table-border-color: #1f223f;
         }
-        .badge-live {
-            background: #00ff00;
-            color: #000000;
-            font-weight: bold;
+        .badge-status {
             font-size: 0.75rem;
             padding: 4px 8px;
             border-radius: 4px;
+            font-weight: bold;
         }
     </style>
 </head>
 <body class="py-4">
 
 <div class="container">
-    <!-- CABEÇALHO -->
+    <!-- CABEÇALHO ORIGINAL -->
     <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom border-secondary">
         <div>
-            <h1 class="text-cyan m-0">COT Hedge Fund Positioning</h1>
-            <p class="text-muted m-0">CFTC Commitment of Traders Net Speculative Positions</p>
+            <h1 class="text-cyan h3 m-0">COT Hedge Fund Positioning</h1>
+            <p class="text-muted small m-0">CFTC Commitment of Traders Net Speculative Positions</p>
         </div>
-        <div class="text-end">
-            <small class="text-muted d-block">Última Atualização: <span id="data-atualizacao" class="text-white">Aguardando...</span></small>
-            <small class="text-muted d-block">Próxima Atualização: <span id="proxima-atualizacao" class="text-white">—</span></small>
+        <div class="text-end text-muted small">
+            <div>Última Atualização: <span id="data-atualizacao" class="text-white">Aguardando...</span></div>
+            <div>Próxima Atualização: <span id="proxima-atualizacao" class="text-white">—</span></div>
         </div>
     </div>
 
-    <!-- CARDS EXPLICATIVOS INICIAIS -->
+    <!-- CARDS INFORMATIVOS DA REGRA DE NEGÓCIO -->
     <div class="row g-3 mb-4">
         <div class="col-md-4">
             <div class="card p-3 h-100">
-                <h5 class="text-cyan">LINHA DO ZERO</h5>
-                <p class="small text-muted m-0"><strong>Acima de 0:</strong> Posicionamento Líquido Positivo (Comprados em Moeda).</p>
+                <h6 class="text-cyan font-weight-bold">LINHA DO ZERO</h6>
+                <p class="small text-muted mb-1"><strong>Acima de 0:</strong> Posicionamento Líquido Positivo (Comprados em Moeda).</p>
                 <p class="small text-muted m-0"><strong>Abaixo de 0:</strong> Posicionamento Líquido Negativo (Vendidos em Moeda).</p>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card p-3 h-100">
-                <h5 class="text-cyan">PICOS E EXTREMOS</h5>
-                <p class="small text-muted m-0"><strong>Valores Crescentes:</strong> Acúmulo de força de COMPRA pelos Fundos.</p>
+                <h6 class="text-cyan font-weight-bold">PICOS E EXTREMOS</h6>
+                <p class="small text-muted mb-1"><strong>Valores Crescentes:</strong> Acúmulo de força de COMPRA pelos Fundos.</p>
                 <p class="small text-muted m-0"><strong>Valores Decrescentes:</strong> Desmonte de posições / Aumento de VENDA.</p>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card p-3 h-100">
-                <h5 class="text-cyan">VARIAÇÃO SEMANAL (DIFF)</h5>
-                <p class="small text-muted m-0"><strong>Diff Positivo (+):</strong> Aumento nas compras líquidas vs. semana anterior.</p>
+                <h6 class="text-cyan font-weight-bold">VARIAÇÃO SEMANAL (DIFF)</h6>
+                <p class="small text-muted mb-1"><strong>Diff Positivo (+):</strong> Aumento nas compras líquidas vs. semana anterior.</p>
                 <p class="small text-muted m-0"><strong>Diff Negativo (-):</strong> Aumento nas vendas líquidas vs. semana anterior.</p>
             </div>
         </div>
     </div>
 
-    <!-- SEÇÃO: VISÃO GERAL DAS MOEDAS -->
+    <!-- TABELA: VISÃO GERAL DAS MOEDAS -->
     <div class="card p-4 mb-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h3 class="m-0 text-white" style="font-size: 1.3rem;">Visão Geral das Moedas (Contratos K)</h3>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="m-0 text-white">Visão Geral das Moedas (Contratos K)</h5>
             <span class="badge bg-success">Modo Online</span>
         </div>
         <p class="text-muted small">Resumo do relatório Non-Commercial Speculators mais recente</p>
         
         <div class="table-responsive">
-            <table class="table table-dark-custom table-hover m-0 align-middle">
+            <table class="table table-dark-custom table-hover m-0 align-middle text-center">
                 <thead>
                     <tr>
-                        <th>Indicador</th>
+                        <th class="text-start">Indicador</th>
                         <th>AUD</th><th>CAD</th><th>CHF</th><th>EUR</th><th>GBP</th><th>JPY</th><th>NZD</th><th>USD</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="tabela-cot-geral">
+                    <!-- Seu script original preenche os dados aqui -->
                     <tr>
-                        <td><strong>Posicionamento Líquido:</strong></td>
+                        <td class="text-start"><strong>Posicionamento Líquido:</strong></td>
                         <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
                     </tr>
                 </tbody>
@@ -101,11 +101,11 @@
         </div>
     </div>
 
-    <!-- SEÇÃO: HISTÓRICO E GRÁFICOS DO COT -->
+    <!-- SEÇÃO DUPLA: HISTÓRICO E REGISTROS -->
     <div class="row g-4 mb-4">
         <div class="col-md-8">
             <div class="card p-4 h-100">
-                <h3 class="text-white mb-2" style="font-size: 1.2rem;">Posicionamento Líquido COT: <span class="text-cyan" id="moeda-selecionada">AUD</span></h3>
+                <h5 class="text-white mb-2">Posicionamento Líquido COT: <span class="text-cyan" id="moeda-selecionada">AUD</span></h5>
                 <p class="text-muted small">Histórico do saldo líquido de contratos especulativos</p>
                 <div class="btn-group btn-group-sm mb-3" role="group">
                     <button type="button" class="btn btn-outline-secondary">3M</button>
@@ -113,14 +113,15 @@
                     <button type="button" class="btn btn-outline-secondary">1Y</button>
                     <button type="button" class="btn btn-outline-secondary active">Todos</button>
                 </div>
-                <div style="height: 300px; background: #161630; border-radius: 6px; display: flex; align-items: center; justify-content: center;" class="text-muted">
-                    Área do Gráfico do Relatório COT
+                <!-- Div onde seu script injeta o gráfico original de linhas -->
+                <div id="grafico-historico-cot" style="height: 300px; background: #0a0b14; border-radius: 6px; display: flex; align-items: center; justify-content: center;" class="text-muted">
+                    [Gráfico Histórico Ativo via Scripts Originais]
                 </div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card p-4 h-100">
-                <h3 class="text-white mb-3" style="font-size: 1.2rem;">Histórico da Moeda</h3>
+                <h5 class="text-white mb-2">Histórico da Moeda</h5>
                 <p class="text-muted small">24 registros</p>
                 <div class="table-responsive" style="max-height: 290px;">
                     <table class="table table-sm table-dark-custom text-center m-0">
@@ -131,7 +132,7 @@
                                 <th>Diff</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="tabela-historico-moeda">
                             <tr><td colspan="3" class="text-muted small">Carregando dados...</td></tr>
                         </tbody>
                     </table>
@@ -140,52 +141,48 @@
         </div>
     </div>
 
-    <!-- CARD SPREAD ENTRE MOEDAS -->
-    <div class="card p-4 mb-4">
-        <h3 class="text-white mb-2" style="font-size: 1.2rem;">Spread entre Moedas (Força Relativa)</h3>
+    <!-- GRÁFICO ORIGINAL: SPREAD ENTRE MOEDAS -->
+    <div class="card p-4 mb-4" id="secao-spread">
+        <h5 class="text-white mb-2">Spread entre Moedas (Força Relativa)</h5>
         <p class="text-muted small">Diferença entre a posição líquida das duas moedas — útil para analisar um par cruzado (ex.: AUD/JPY)</p>
-        <div style="height: 250px; background: #161630; border-radius: 6px; display: flex; align-items: center; justify-content: center;" class="text-muted">
-            Área do Gráfico de Spread
+        <!-- Div onde seu script injeta o gráfico de barras de força relativa -->
+        <div id="grafico-spread-moedas" style="height: 250px; background: #0a0b14; border-radius: 6px; display: flex; align-items: center; justify-content: center;" class="text-muted">
+            [Gráfico de Spread Ativo via Scripts Originais]
         </div>
     </div>
 
 
     <!-- ================================================================= -->
-    <!-- NOVO CARD INTEGRADO: ANÁLISE REAL-TIME DO METATRADER 5           -->
+    <!-- INSERÇÃO DO SEU NOVO CARD: MOMENTUM EM TEMPO REAL METATRADER 5    -->
     <!-- ================================================================= -->
-    <div class="card mb-4" style="background: #131326; border: 1px solid #00ffcc; padding: 20px;">
+    <div class="card mb-4" style="background: #131526; border: 1px solid #00ffcc; padding: 20px;">
         <div class="card-header border-0 bg-transparent p-0 mb-3 d-flex justify-content-between align-items-center">
-            <h3 class="card-title m-0" style="font-size: 1.25rem; font-weight: 600; color: #00ffcc; letter-spacing: 0.5px;">
+            <h5 class="card-title m-0 text-cyan" style="font-weight: 600; letter-spacing: 0.5px;">
                 ⚡ Momentum em Tempo Real (MetaTrader 5)
-            </h3>
-            <span id="mt5-status-badge" style="background: #ffaa00; color: #000; font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; font-weight: bold;">
+            </h5>
+            <span id="mt5-status-badge" class="badge-status" style="background: #ffaa00; color: #000000;">
                 Aguardando MT5...
             </span>
         </div>
         
         <div class="row g-3">
-            <!-- Coluna 1: Ativo e Preço -->
+            <!-- Bloco Cotação -->
             <div class="col-md-4">
-                <div style="background: #0b0b16; padding: 15px; border-radius: 6px; border-left: 4px solid #00ffcc; height: 100%;">
-                    <small style="color: #8888aa; text-transform: uppercase; font-size: 0.75rem; font-weight: bold; display: block; margin-bottom: 5px;">Ativo / Cotação</small>
+                <div style="background: #0d0e1b; padding: 15px; border-radius: 6px; border-left: 4px solid #00ffcc; height: 100%;">
+                    <small style="color: #6a6d8c; text-transform: uppercase; font-size: 0.7rem; font-weight: bold; display: block; margin-bottom: 5px;">Ativo / Cotação</small>
                     <div style="display: flex; align-items: baseline; gap: 10px;">
-                        <span id="mt5-ativo" style="font-size: 1.4rem; font-weight: bold; color: #ffffff;">XAUUSD</span>
-                        <span id="mt5-preco" style="font-size: 1.8rem; font-weight: bold; color: #00ffcc; font-family: monospace;">---</span>
+                        <span id="mt5-ativo" style="font-size: 1.3rem; font-weight: bold; color: #ffffff;">XAUUSD</span>
+                        <span id="mt5-preco" style="font-size: 1.7rem; font-weight: bold; color: #00ffcc; font-family: monospace;">---</span>
                     </div>
                 </div>
             </div>
             
-            <!-- Coluna 2: Força do ADX -->
+            <!-- Bloco ADX -->
             <div class="col-md-4">
-                <div style="background: #0b0b16; padding: 15px; border-radius: 6px; border-left: 4px solid #ffcc00; height: 100%;">
-                    <small style="color: #8888aa; text-transform: uppercase; font-size: 0.75rem; font-weight: bold; display: block; margin-bottom: 5px;">Força da Tendência (ADX)</small>
+                <div style="background: #0d0e1b; padding: 15px; border-radius: 6px; border-left: 4px solid #ffcc00; height: 100%;">
+                    <small style="color: #6a6d8c; text-transform: uppercase; font-size: 0.7rem; font-weight: bold; display: block; margin-bottom: 5px;">Força da Tendência (ADX)</small>
                     <div style="display: flex; align-items: center; gap: 10px;">
-                        <span id="mt5-adx" style="font-size: 1.8rem; font-weight: bold; color: #ffcc00; font-family: monospace;">---</span>
-                        <small id="mt5-adx-msg" style="color: #aaaaaa; font-size: 0.85rem; font-weight: 500;">Calculando...</small>
+                        <span id="mt5-adx" style="font-size: 1.7rem; font-weight: bold; color: #ffcc00; font-family: monospace;">---</span>
+                        <small id="mt5-adx-msg" style="color: #8a8d8c; font-size: 0.85rem;">Calculando...</small>
                     </div>
                 </div>
-            </div>
-            
-            <!-- Coluna 3: Direção do Fluxo -->
-            <div class="col-md-4">
-                <div style="background: #0b0b16; padding: 15px; border-radius: 6px; border-left: 4px solid #ff4444; height: 100%;">
