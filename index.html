@@ -816,10 +816,229 @@ jobs:
             document.getElementById('github-modal').classList.toggle('hidden');
         }
 
-        // Initialize App on DOM Load
-        document.addEventListener('DOMContentLoaded', () => {
-            fetchCOTData();
-        });
+       // // Inicializar o aplicativo ao carregar o DOM - Integrado com Real-Time MT5
+// // Inicializar o aplicativo ao carregar o DOM - Integrado com Real-Time MT5
+document.addEventListener('DOMContentLoaded', () => {
+    // Mantém a sua função original funcionando perfeitamente
+    buscarDadosCOT();
+
+    // 1. Injeta dinamicamente o card de Momentum com o seu layout Tailwind original
+    const mainContainer = document.querySelector('main') || document.querySelector('.container');
+    if (mainContainer) {
+        const mt5CardHTML = `
+        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5 mt-6">
+            <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
+                <div>
+                    <h3 class="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <span>⚡</span> Momentum em Tempo Real (MetaTrader 5)
+                    </h3>
+                </div>
+                <div>
+                    <span id="mt5-status-badge" class="text-xs font-bold px-2.5 py-1 rounded bg-yellow-500 text-black uppercase">
+                        Aguardando MT5...
+                    </span>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Card Cotação -->
+                <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-l-4 border-gray-100 dark:border-gray-800 border-l-cyan-400 dark:border-l-cyan-500">
+                    <span class="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider block mb-1">Ativo / Cotação</span>
+                    <div class="flex items-baseline gap-2">
+                        <span id="mt5-ativo" class="text-base font-bold text-gray-800 dark:text-white">XAUUSD</span>
+                        <span id="mt5-preco" class="text-xl font-bold text-cyan-500 font-mono">---</span>
+                    </div>
+                </div>
+                
+                <!-- Card ADX -->
+                <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-l-4 border-gray-100 dark:border-gray-800 border-l-yellow-400 dark:border-l-yellow-500">
+                    <span class="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider block mb-1">Força da Tendência (ADX)</span>
+                    <div class="flex items-center gap-2">
+                        <span id="mt5-adx" class="text-xl font-bold text-yellow-500 font-mono">---</span>
+                        <span id="mt5-adx-msg" class="text-xs text-gray-500 dark:text-gray-400 font-medium">Calculando...</span>
+                    </div>
+                </div>
+                
+                <!-- Card Direção -->
+                <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-l-4 border-gray-100 dark:border-gray-800 border-l-red-400 dark:border-l-red-500">
+                    <span class="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider block mb-1">Direção do Momentum (DI)</span>
+                    <div id="mt5-direcao" class="text-sm font-bold text-gray-800 dark:text-white pt-1">
+                        Analisando fluxo...
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        
+        mainContainer.insertAdjacentHTML('beforeend', mt5CardHTML);
+    }
+
+    // 2. Loop de comunicação real-time CORRIGIDO (IP completo + Porta 8000)
+    async function processarRealTimeMT5() {
+        try {
+            const response = await fetch('http://127.0.0', {
+                method: 'GET',
+                mode: 'cors',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            
+            if (data.status === "sucesso") {
+                document.getElementById('mt5-ativo').innerText = data.ativo;
+                document.getElementById('mt5-preco').innerText = typeof data.preco === 'number' ? data.preco.toFixed(2) : data.preco;
+                
+                const valorAdx = data.adx;
+                const adxElem = document.getElementById('mt5-adx');
+                const adxMsgElem = document.getElementById('mt5-adx-msg');
+                const badge = document.getElementById('mt5-status-badge');
+                
+                adxElem.innerText = valorAdx.toFixed(2);
+                
+                if (valorAdx > 25) {
+                    adxElem.className = "text-xl font-bold font-mono text-green-500";
+                    adxMsgElem.innerHTML = "🔥 <span class='text-green-500 font-bold'>Tendência Forte</span>";
+                } else {
+                    adxElem.className = "text-xl font-bold font-mono text-yellow-500";
+                    adxMsgElem.innerHTML = "💤 <span class='text-yellow-500'>Mercado Lateral</span>";
+                }
+                
+                const direcaoElem = document.getElementById('mt5-direcao');
+                direcaoElem.innerText = data.direcao;
+                if (data.direcao.includes("COMPRA")) {
+                    direcaoElem.className = "text-sm font-bold text-green-500 pt-1";
+                } else if (data.direcao.includes("VENDA")) {
+                    direcaoElem.className = "text-sm font-bold text-red-500 pt-1";
+                }
+                
+                badge.innerText = "LIVE SYNC ACTIVE";
+                badge.className = "text-xs font-bold px-2.5 py-1 rounded bg-green-500 text-black uppercase";
+            }
+        } catch (error) {
+            const badge = document.getElementById('mt5-status-badge');
+            if (badge) {
+                badge.innerText = "MT5 DESCONECTADO";
+                badge.className = "text-xs font-bold px-2.5 py-1 rounded bg-red-500 text-white uppercase";
+                document.getElementById('mt5-preco').innerText = "---";
+                document.getElementById('mt5-adx').innerText = "---";
+                document.getElementById('mt5-adx-msg').innerHTML = "<span class='text-gray-400'>Desconectado</span>";
+                document.getElementById('mt5-direcao').innerText = "Inicie o arquivo python local no seu terminal.";
+                document.getElementById('mt5-direcao').className = "text-sm font-medium text-gray-400 pt-1";
+            }
+        }
+    }
+
+    setInterval(processarRealTimeMT5, 1000);
+    processarRealTimeMT5();
+});
+
+
+    // 1. Injeta dinamicamente o card de Momentum com o seu layout Tailwind original
+    const mainContainer = document.querySelector('main') || document.querySelector('.container');
+    if (mainContainer) {
+        const mt5CardHTML = `
+        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5 mt-6">
+            <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
+                <div>
+                    <h3 class="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <span>⚡</span> Momentum em Tempo Real (MetaTrader 5)
+                    </h3>
+                </div>
+                <div>
+                    <span id="mt5-status-badge" class="text-xs font-bold px-2.5 py-1 rounded bg-yellow-500 text-black uppercase">
+                        Aguardando MT5...
+                    </span>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Card Cotação -->
+                <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-l-4 border-gray-100 dark:border-gray-800 border-l-cyan-400 dark:border-l-cyan-500">
+                    <span class="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider block mb-1">Ativo / Cotação</span>
+                    <div class="flex items-baseline gap-2">
+                        <span id="mt5-ativo" class="text-base font-bold text-gray-800 dark:text-white">XAUUSD</span>
+                        <span id="mt5-preco" class="text-xl font-bold text-cyan-500 font-mono">---</span>
+                    </div>
+                </div>
+                
+                <!-- Card ADX -->
+                <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-l-4 border-gray-100 dark:border-gray-800 border-l-yellow-400 dark:border-l-yellow-500">
+                    <span class="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider block mb-1">Força da Tendência (ADX)</span>
+                    <div class="flex items-center gap-2">
+                        <span id="mt5-adx" class="text-xl font-bold text-yellow-500 font-mono">---</span>
+                        <span id="mt5-adx-msg" class="text-xs text-gray-500 dark:text-gray-400 font-medium">Calculando...</span>
+                    </div>
+                </div>
+                
+                <!-- Card Direção -->
+                <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-l-4 border-gray-100 dark:border-gray-800 border-l-red-400 dark:border-l-red-500">
+                    <span class="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider block mb-1">Direção do Momentum (DI)</span>
+                    <div id="mt5-direcao" class="text-sm font-bold text-gray-800 dark:text-white pt-1">
+                        Analisando fluxo...
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        
+        mainContainer.insertAdjacentHTML('beforeend', mt5CardHTML);
+    }
+
+    // 2. Loop de comunicação real-time corrigido com tratamento CORS para o navegador
+    async function processarRealTimeMT5() {
+        try {
+            const response = await fetch('http://127.0.0', {
+                method: 'GET',
+                mode: 'cors',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            
+            if (data.status === "sucesso") {
+                document.getElementById('mt5-ativo').innerText = data.ativo;
+                document.getElementById('mt5-preco').innerText = typeof data.preco === 'number' ? data.preco.toFixed(2) : data.preco;
+                
+                const valorAdx = data.adx;
+                const adxElem = document.getElementById('mt5-adx');
+                const adxMsgElem = document.getElementById('mt5-adx-msg');
+                const badge = document.getElementById('mt5-status-badge');
+                
+                adxElem.innerText = valorAdx.toFixed(2);
+                
+                if (valorAdx > 25) {
+                    adxElem.className = "text-xl font-bold font-mono text-green-500";
+                    adxMsgElem.innerHTML = "🔥 <span class='text-green-500 font-bold'>Tendência Forte</span>";
+                } else {
+                    adxElem.className = "text-xl font-bold font-mono text-yellow-500";
+                    adxMsgElem.innerHTML = "💤 <span class='text-yellow-500'>Mercado Lateral</span>";
+                }
+                
+                const direcaoElem = document.getElementById('mt5-direcao');
+                direcaoElem.innerText = data.direcao;
+                if (data.direcao.includes("COMPRA")) {
+                    direcaoElem.className = "text-sm font-bold text-green-500 pt-1";
+                } else if (data.direcao.includes("VENDA")) {
+                    direcaoElem.className = "text-sm font-bold text-red-500 pt-1";
+                }
+                
+                badge.innerText = "LIVE SYNC ACTIVE";
+                badge.className = "text-xs font-bold px-2.5 py-1 rounded bg-green-500 text-black uppercase";
+            }
+        } catch (error) {
+            const badge = document.getElementById('mt5-status-badge');
+            if (badge) {
+                badge.innerText = "MT5 DESCONECTADO";
+                badge.className = "text-xs font-bold px-2.5 py-1 rounded bg-red-500 text-white uppercase";
+                document.getElementById('mt5-preco').innerText = "---";
+                document.getElementById('mt5-adx').innerText = "---";
+                document.getElementById('mt5-adx-msg').innerHTML = "<span class='text-gray-400'>Desconectado</span>";
+                document.getElementById('mt5-direcao').innerText = "Inicie o arquivo python local no seu terminal.";
+                document.getElementById('mt5-direcao').className = "text-sm font-medium text-gray-400 pt-1";
+            }
+        }
+    }
+
+    setInterval(processarRealTimeMT5, 1000);
+    processarRealTimeMT5();
+});
+
     </script>
 </body>
 </html>
