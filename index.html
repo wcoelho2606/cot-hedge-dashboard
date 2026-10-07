@@ -1,825 +1,191 @@
 <!DOCTYPE html>
-<html lang="pt-BR" class="dark">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Análise de Posicionamento COT - Fundos Hedge</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            50: '#f0f9ff',
-                            500: '#0284c7',
-                            900: '#0c4a6e',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-    <!-- FontAwesome CDN -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Bootstrap CSS para estilização e Grid -->
+    <link href="https://jsdelivr.net" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); }
-        .dark .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.5); border-radius: 3px; }
+        body {
+            background-color: #0b0b16;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .card {
+            background: #121225;
+            border: 1px solid #252545;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+        .text-cyan { color: #00ffcc; }
+        .text-yellow { color: #ffcc00; }
+        .table-dark-custom {
+            --bs-table-bg: #121225;
+            --bs-table-color: #fff;
+            --bs-table-border-color: #252545;
+        }
+        .badge-live {
+            background: #00ff00;
+            color: #000000;
+            font-weight: bold;
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
     </style>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 transition-colors duration-200 min-h-screen flex flex-col">
+<body class="py-4">
 
-    <!-- Navigation / Header -->
-    <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-30 shadow-sm">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap justify-between items-center gap-4">
-            <div class="flex items-center space-x-3">
-                <div class="p-2 bg-blue-600 text-white rounded-lg shadow-md">
-                    <i class="fa-solid me-0 fa-chart-line text-xl"></i>
-                </div>
-                <div>
-                    <h1 class="font-bold text-lg leading-tight text-gray-900 dark:text-white">COT Hedge Fund Positioning</h1>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">CFTC Commitment of Traders Net Speculative Positions</p>
-                </div>
-            </div>
+<div class="container">
+    <!-- CABEÇALHO -->
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom border-secondary">
+        <div>
+            <h1 class="text-cyan m-0">COT Hedge Fund Positioning</h1>
+            <p class="text-muted m-0">CFTC Commitment of Traders Net Speculative Positions</p>
+        </div>
+        <div class="text-end">
+            <small class="text-muted d-block">Última Atualização: <span id="data-atualizacao" class="text-white">Aguardando...</span></small>
+            <small class="text-muted d-block">Próxima Atualização: <span id="proxima-atualizacao" class="text-white">—</span></small>
+        </div>
+    </div>
 
-            <!-- Action Controls -->
-            <div class="flex items-center space-x-3 text-sm">
-                <div class="hidden sm:flex flex-col text-right mr-2">
-                    <span class="text-xs text-gray-400">Última Atualização:</span>
-                    <span id="last-update-tag" class="font-semibold text-gray-700 dark:text-gray-300">Aguardando...</span>
-                </div>
-
-                <div class="hidden md:flex flex-col text-right mr-2">
-                    <span class="text-xs text-gray-400">Próxima Atualização:</span>
-                    <span id="next-update-tag" class="font-semibold text-gray-700 dark:text-gray-300">—</span>
-                </div>
-
-                <span id="header-source-badge" class="hidden sm:inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
-                    <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
-                    <span>Verificando...</span>
-                </span>
-
-                <button id="btn-sync" onclick="fetchCOTData()" class="flex items-center space-x-2 px-3 py-1.5 bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-gray-600 rounded-lg text-xs font-semibold transition">
-                    <i id="sync-icon" class="fa-solid fa-rotate-right"></i>
-                    <span>Sincronizar</span>
-                </button>
-
-                <button id="btn-github-modal" onclick="toggleGithubModal()" class="flex items-center space-x-2 px-3 py-1.5 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 rounded-lg text-xs font-semibold transition border border-purple-200 dark:border-purple-800">
-                    <i class="fa-brands fa-github"></i>
-                    <span>Automação GitHub</span>
-                </button>
-
-                <button id="theme-toggle" class="p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-sm">
-                    <i id="theme-icon" class="fa-solid fa-moon"></i>
-                </button>
+    <!-- CARDS EXPLICATIVOS INICIAIS -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card p-3 h-100">
+                <h5 class="text-cyan">LINHA DO ZERO</h5>
+                <p class="small text-muted m-0"><strong>Acima de 0:</strong> Posicionamento Líquido Positivo (Comprados em Moeda).</p>
+                <p class="small text-muted m-0"><strong>Abaixo de 0:</strong> Posicionamento Líquido Negativo (Vendidos em Moeda).</p>
             </div>
         </div>
-    </header>
-
-    <!-- Main Content Container -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full space-y-6">
-
-        <!-- Rules & Methodology Banner -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm relative overflow-hidden">
-                <div class="absolute right-0 top-0 translate-x-2 -translate-y-2 w-16 h-16 bg-blue-500/10 rounded-full blur-xl"></div>
-                <div class="flex items-center space-x-2 text-blue-600 dark:text-blue-400 font-bold mb-1 text-sm">
-                    <i class="fa-solid fa-sliders"></i>
-                    <span>LINHA DO ZERO</span>
-                </div>
-                <p class="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-                    <strong>Acima de 0:</strong> Posicionamento Líquido Positivo (<span class="text-emerald-500 font-semibold">Comprados</span> em Moeda).<br>
-                    <strong>Abaixo de 0:</strong> Posicionamento Líquido Negativo (<span class="text-rose-500 font-semibold">Vendidos</span> em Moeda).
-                </p>
-            </div>
-
-            <div class="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm relative overflow-hidden">
-                <div class="flex items-center space-x-2 text-purple-600 dark:text-purple-400 font-bold mb-1 text-sm">
-                    <i class="fa-solid fa-chart-area"></i>
-                    <span>PICOS E EXTREMOS</span>
-                </div>
-                <p class="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-                    <strong>Valores Crescentes:</strong> Acúmulo de força de COMPRA pelos Fundos.<br>
-                    <strong>Valores Decrescentes:</strong> Desmonte de posições / Aumento de VENDA.
-                </p>
-            </div>
-
-            <div class="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm relative overflow-hidden">
-                <div class="flex items-center space-x-2 text-amber-600 dark:text-amber-400 font-bold mb-1 text-sm">
-                    <i class="fa-solid fa-bolt"></i>
-                    <span>VARIAÇÃO SEMANAL (DIFF)</span>
-                </div>
-                <p class="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-                    <strong>Diff Positivo (+):</strong> Aumento nas compras líquidas vs. semana anterior.<br>
-                    <strong>Diff Negativo (-):</strong> Aumento nas vendas líquidas vs. semana anterior.
-                </p>
+        <div class="col-md-4">
+            <div class="card p-3 h-100">
+                <h5 class="text-cyan">PICOS E EXTREMOS</h5>
+                <p class="small text-muted m-0"><strong>Valores Crescentes:</strong> Acúmulo de força de COMPRA pelos Fundos.</p>
+                <p class="small text-muted m-0"><strong>Valores Decrescentes:</strong> Desmonte de posições / Aumento de VENDA.</p>
             </div>
         </div>
-
-        <!-- Currency Overview Table -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-wrap justify-between items-center gap-2">
-                <div>
-                    <h2 class="font-bold text-gray-900 dark:text-white text-base">Visão Geral das Moedas (Contratos K)</h2>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Resumo do relatório Non-Commercial Speculators mais recente</p>
-                </div>
-                <div id="data-status-badge" class="px-2.5 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-full text-xs font-medium flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>Modo Online</span>
-                </div>
-            </div>
-
-            <div class="overflow-x-auto custom-scrollbar">
-                <table class="w-full text-xs text-center border-collapse">
-                    <thead class="bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 font-semibold border-b border-gray-200 dark:border-gray-700">
-                        <tr>
-                            <th class="p-3 text-left pl-4">Indicador</th>
-                            <th class="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onclick="selectCurrency('AUD')">AUD</th>
-                            <th class="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onclick="selectCurrency('CAD')">CAD</th>
-                            <th class="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onclick="selectCurrency('CHF')">CHF</th>
-                            <th class="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onclick="selectCurrency('EUR')">EUR</th>
-                            <th class="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onclick="selectCurrency('GBP')">GBP</th>
-                            <th class="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onclick="selectCurrency('JPY')">JPY</th>
-                            <th class="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onclick="selectCurrency('NZD')">NZD</th>
-                            <th class="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onclick="selectCurrency('USD')">USD</th>
-                        </tr>
-                    </thead>
-                    <tbody id="overview-table-body" class="divide-y divide-gray-200 dark:divide-gray-700">
-                        <!-- Populated by JavaScript -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Currency Selection Controls & Interactive Detail Panel -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-            <!-- Main Chart Area (8 cols on lg) -->
-            <div class="lg:col-span-8 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5 flex flex-col justify-between">
-
-                <!-- Chart Top Bar -->
-                <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
-                    <div>
-                        <div class="flex items-center space-x-2">
-                            <h3 class="text-base font-bold text-gray-900 dark:text-white">Posicionamento Líquido COT:</h3>
-                            <span id="active-currency-title" class="px-2.5 py-0.5 rounded text-sm font-bold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">AUD</span>
-                        </div>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Histórico do saldo líquido de contratos especulativos</p>
-                    </div>
-
-                    <!-- Filter Controls -->
-                    <div class="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg text-xs font-medium">
-                        <button onclick="setTimeframe('3M')" class="tf-btn px-2.5 py-1 rounded-md transition text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white" data-tf="3M">3M</button>
-                        <button onclick="setTimeframe('6M')" class="tf-btn px-2.5 py-1 rounded-md transition text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white" data-tf="6M">6M</button>
-                        <button onclick="setTimeframe('1Y')" class="tf-btn px-2.5 py-1 rounded-md transition text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white" data-tf="1Y">1Y</button>
-                        <button onclick="setTimeframe('ALL')" class="tf-btn px-2.5 py-1 rounded-md transition bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm" data-tf="ALL">Todos</button>
-                    </div>
-                </div>
-
-                <!-- Currency Selector Bar -->
-                <div class="flex flex-wrap gap-1.5 mb-4 p-1.5 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-700/50">
-                    <button onclick="selectCurrency('AUD')" class="curr-selector-btn flex-1 min-w-[60px] py-1 px-2 rounded text-xs font-semibold text-center transition">AUD</button>
-                    <button onclick="selectCurrency('CAD')" class="curr-selector-btn flex-1 min-w-[60px] py-1 px-2 rounded text-xs font-semibold text-center transition">CAD</button>
-                    <button onclick="selectCurrency('CHF')" class="curr-selector-btn flex-1 min-w-[60px] py-1 px-2 rounded text-xs font-semibold text-center transition">CHF</button>
-                    <button onclick="selectCurrency('EUR')" class="curr-selector-btn flex-1 min-w-[60px] py-1 px-2 rounded text-xs font-semibold text-center transition">EUR</button>
-                    <button onclick="selectCurrency('GBP')" class="curr-selector-btn flex-1 min-w-[60px] py-1 px-2 rounded text-xs font-semibold text-center transition">GBP</button>
-                    <button onclick="selectCurrency('JPY')" class="curr-selector-btn flex-1 min-w-[60px] py-1 px-2 rounded text-xs font-semibold text-center transition">JPY</button>
-                    <button onclick="selectCurrency('NZD')" class="curr-selector-btn flex-1 min-w-[60px] py-1 px-2 rounded text-xs font-semibold text-center transition">NZD</button>
-                    <button onclick="selectCurrency('USD')" class="curr-selector-btn flex-1 min-w-[60px] py-1 px-2 rounded text-xs font-semibold text-center transition">USD</button>
-                </div>
-
-                <!-- Chart Container -->
-                <div class="relative w-full h-[360px]">
-                    <canvas id="cotChart"></canvas>
-                </div>
-            </div>
-
-            <!-- Historical Table Panel (4 cols on lg) -->
-            <div class="lg:col-span-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 flex flex-col h-[520px]">
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="font-bold text-gray-900 dark:text-white text-sm">Histórico da Moeda</h3>
-                    <span id="history-count" class="text-xs text-gray-500">24 registros</span>
-                </div>
-
-                <div class="overflow-y-auto custom-scrollbar flex-grow border border-gray-100 dark:border-gray-700 rounded-lg">
-                    <table class="w-full text-xs text-center border-collapse">
-                        <thead class="sticky top-0 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-semibold z-10">
-                            <tr>
-                                <th class="p-2 border-b border-gray-200 dark:border-gray-600 text-left pl-3">Data</th>
-                                <th class="p-2 border-b border-gray-200 dark:border-gray-600">Valor (K)</th>
-                                <th class="p-2 border-b border-gray-200 dark:border-gray-600 text-right pr-3">Diff</th>
-                            </tr>
-                        </thead>
-                        <tbody id="history-table-body" class="divide-y divide-gray-100 dark:divide-gray-700/50">
-                            <!-- Populated by JS -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-        </div>
-
-        <!-- Spread Between Currencies Card -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
-            <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
-                <div>
-                    <h3 class="text-base font-bold text-gray-900 dark:text-white">Spread entre Moedas (Força Relativa)</h3>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Diferença entre a posição líquida das duas moedas — útil para analisar um par cruzado (ex.: AUD/JPY)</p>
-                </div>
-
-                <div class="flex items-center gap-2 text-xs font-medium">
-                    <select id="spread-base-select" onchange="renderSpreadChart()" class="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-2.5 py-1.5 text-gray-700 dark:text-gray-200">
-                    </select>
-                    <span class="text-gray-400 font-bold">−</span>
-                    <select id="spread-quote-select" onchange="renderSpreadChart()" class="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-2.5 py-1.5 text-gray-700 dark:text-gray-200">
-                    </select>
-                </div>
-            </div>
-
-            <div id="spread-summary" class="text-xs text-gray-600 dark:text-gray-300 mb-3"></div>
-
-            <div class="relative w-full h-[300px]">
-                <canvas id="spreadChart"></canvas>
-            </div>
-        </div>
-
-    </main>
-
-    <!-- Modal: GitHub Actions & Automation Documentation -->
-    <div id="github-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
-        <div class="bg-white dark:bg-gray-800 rounded-xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-
-            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800/80">
-                <div class="flex items-center space-x-2">
-                    <i class="fa-brands fa-github text-xl text-purple-600 dark:text-purple-400"></i>
-                    <h3 class="font-bold text-gray-900 dark:text-white text-base">Automação GitHub Actions (já configurada neste repositório)</h3>
-                </div>
-                <button onclick="toggleGithubModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
-            </div>
-
-            <div class="p-6 overflow-y-auto custom-scrollbar space-y-4 text-xs leading-relaxed text-gray-700 dark:text-gray-300">
-                <p>
-                    Este dashboard é atualizado automaticamente toda semana, de forma gratuita, via <strong>GitHub Pages + GitHub Actions</strong>, usando os arquivos já presentes no repositório <code>cot-hedge-dashboard</code>.
-                </p>
-
-                <div class="space-y-2">
-                    <h4 class="font-bold text-sm text-gray-900 dark:text-white">1. Script de coleta (`updater.py`)</h4>
-                    <p>Baixa os dados oficiais da CFTC, calcula a posição líquida (Long − Short) por moeda e grava o arquivo <code>data.json</code> consumido por esta página.</p>
-                </div>
-
-                <div class="space-y-2">
-                    <h4 class="font-bold text-sm text-gray-900 dark:text-white">2. Workflow do GitHub Actions (`.github/workflows/cot_update.yml`)</h4>
-                    <p>Executa toda sexta-feira às 20:30 UTC (logo após a liberação do relatório COT), roda o <code>updater.py</code> e faz commit automático do <code>data.json</code> atualizado.</p>
-                    <pre class="bg-gray-900 text-gray-100 p-3 rounded-lg overflow-x-auto text-[11px] font-mono select-all">name: CFTC COT Data Auto-Updater
-
-on:
-  schedule:
-    - cron: '30 20 * * 5'
-  workflow_dispatch:
-
-jobs:
-  build-and-update:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repositório
-        uses: actions/checkout@v3
-
-      - name: Configurar Python 3.10
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Instalar Dependências
-        run: |
-          python -m pip install --upgrade pip
-          pip install pandas requests
-
-      - name: Executar Script de Atualização
-        run: python updater.py
-
-      - name: Commit e Push das Alterações
-        run: |
-          git config --global user.name "GitHub Actions Bot"
-          git config --global user.email "actions@github.com"
-          git add data.json
-          git status
-          git diff-index --quiet HEAD || git commit -m "Auto-update: Dados COT CFTC atualizados"
-          git push</pre>
-                </div>
-
-                <p>
-                    Se o <code>data.json</code> não estiver acessível no momento do carregamento (ex.: primeiro deploy), esta página usa dados simulados como <em>fallback</em> para nunca ficar em branco, e mostra o selo "Dados Simulação/Fallback" no lugar de "Live Auto Sync".
-                </p>
-            </div>
-
-            <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 flex justify-end">
-                <button onclick="toggleGithubModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">Entendido</button>
+        <div class="col-md-4">
+            <div class="card p-3 h-100">
+                <h5 class="text-cyan">VARIAÇÃO SEMANAL (DIFF)</h5>
+                <p class="small text-muted m-0"><strong>Diff Positivo (+):</strong> Aumento nas compras líquidas vs. semana anterior.</p>
+                <p class="small text-muted m-0"><strong>Diff Negativo (-):</strong> Aumento nas vendas líquidas vs. semana anterior.</p>
             </div>
         </div>
     </div>
 
-    <!-- Footer -->
-    <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4 text-center text-xs text-gray-500 dark:text-gray-400">
-        <p>© 2026 COT Hedge Fund Dashboard. Dados de posicionamento baseados no Commodity Futures Trading Commission (CFTC).</p>
-    </footer>
-
-    <!-- Logic Script -->
-    <script>
-        // State Management
-        let currentCurrency = 'AUD';
-        let currentTimeframe = 'ALL';
-        let cotData = null;
-        let chartInstance = null;
-        let spreadChartInstance = null;
-        const currencyOrder = ['AUD', 'CAD', 'CHF', 'EUR', 'GBP', 'JPY', 'NZD', 'USD'];
-
-        // Dados Simulados/Fallback (usados quando data.json não está acessível)
-        // Segue o MESMO formato do data.json real: { period, current, previous, diff, history }
-        const generateFallbackData = () => {
-            const dates = [];
-            const startDate = new Date(2024, 0, 5);
-            const endDate = new Date(2026, 6, 31);
-
-            let curr = new Date(startDate);
-            while (curr <= endDate) {
-                const day = String(curr.getDate()).padStart(2, '0');
-                const month = String(curr.getMonth() + 1).padStart(2, '0');
-                const year = curr.getFullYear();
-                dates.push(`${day}/${month}/${year}`);
-                curr.setDate(curr.getDate() + 7);
-            }
-
-            const currencies = ['AUD', 'CAD', 'CHF', 'EUR', 'GBP', 'JPY', 'NZD', 'USD'];
-            const history = {};
-            const current = {};
-            const previous = {};
-            const diff = {};
-
-            currencies.forEach(code => {
-                let baseVal = (Math.random() - 0.5) * 40;
-                const series = [];
-
-                dates.forEach(date => {
-                    const delta = (Math.random() - 0.49) * 4.5;
-                    baseVal = Math.max(-50, Math.min(50, baseVal + delta));
-                    series.push({ date, val: parseFloat(baseVal.toFixed(1)) });
-                });
-
-                history[code] = series;
-                current[code] = series[series.length - 1].val;
-                previous[code] = series[series.length - 2].val;
-                diff[code] = parseFloat((current[code] - previous[code]).toFixed(1));
-            });
-
-            return {
-                period: `Dados simulados até ${dates[dates.length - 1]} (fallback)`,
-                current,
-                previous,
-                diff,
-                history
-            };
-        };
-
-        // Fetch COT Data with Fallback Protection
-        async function fetchCOTData() {
-            const syncIcon = document.getElementById('sync-icon');
-            syncIcon.classList.add('fa-spin');
-
-            const statusBadge = document.getElementById('data-status-badge');
-            const headerBadge = document.getElementById('header-source-badge');
-
-            try {
-                // Carrega o data.json real, gerado pelo updater.py via GitHub Actions
-                const response = await fetch('./data.json?cache_bypass=' + new Date().getTime());
-                if (!response.ok) throw new Error('data.json não encontrado');
-
-                cotData = await response.json();
-                statusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span><span>Live Auto Sync</span>`;
-                statusBadge.className = "px-2.5 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-full text-xs font-medium flex items-center gap-1.5";
-
-                headerBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span><span>Dados Reais (data.json)</span>`;
-                headerBadge.className = "hidden sm:inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400";
-            } catch (err) {
-                console.warn("data.json não encontrado. Carregando motor de simulação fallback.", err);
-                cotData = generateFallbackData();
-                statusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500"></span><span>Dados Simulação/Fallback</span>`;
-                statusBadge.className = "px-2.5 py-1 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 rounded-full text-xs font-medium flex items-center gap-1.5";
-
-                headerBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span><span>Dados Simulados (fallback)</span>`;
-                headerBadge.className = "hidden sm:inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400";
-            } finally {
-                setTimeout(() => syncIcon.classList.remove('fa-spin'), 600);
-                renderDashboard();
-            }
-        }
-
-        // Calcula a próxima execução do workflow do GitHub Actions
-        // (cron: '30 20 * * 5' -> toda sexta-feira às 20:30 UTC)
-        function getNextUpdateDate() {
-            const now = new Date();
-            const dayUTC = now.getUTCDay(); // 0=Dom, 1=Seg, ..., 5=Sex, 6=Sáb
-            const targetHourUTC = 20;
-            const targetMinuteUTC = 30;
-
-            let daysUntilFriday = (5 - dayUTC + 7) % 7;
-
-            let next = new Date(Date.UTC(
-                now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
-                targetHourUTC, targetMinuteUTC, 0
-            ));
-            next.setUTCDate(next.getUTCDate() + daysUntilFriday);
-
-            // Se hoje já é sexta-feira e o horário de execução já passou,
-            // a próxima atualização é somente na sexta seguinte
-            if (daysUntilFriday === 0 && now.getTime() > next.getTime()) {
-                next.setUTCDate(next.getUTCDate() + 7);
-            }
-
-            return next;
-        }
-
-        function renderNextUpdate() {
-            const next = getNextUpdateDate();
-            const day = String(next.getUTCDate()).padStart(2, '0');
-            const month = String(next.getUTCMonth() + 1).padStart(2, '0');
-            const year = next.getUTCFullYear();
-            document.getElementById('next-update-tag').innerText = `${day}/${month}/${year} às 20:30 UTC`;
-        }
-
-        // Render Dashboard Elements
-        function renderDashboard() {
-            if (!cotData) return;
-
-            document.getElementById('last-update-tag').innerText = cotData.period || '—';
-            renderNextUpdate();
-
-            renderOverviewTable();
-            renderCurrencyControls();
-            renderHistoryTable();
-            renderChart();
-            populateSpreadSelectors();
-            renderSpreadChart();
-        }
-
-        // Render Currency Summary Row Overview
-        function renderOverviewTable() {
-            const tbody = document.getElementById('overview-table-body');
-            const currencies = ['AUD', 'CAD', 'CHF', 'EUR', 'GBP', 'JPY', 'NZD', 'USD'];
-
-            let htmlValue = `<tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/30"><td class="p-3 font-semibold text-left pl-4 text-gray-900 dark:text-white">Valor Atual (K)</td>`;
-            let htmlPrev = `<tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/30"><td class="p-3 font-semibold text-left pl-4 text-gray-500 dark:text-gray-400">Valor Anterior</td>`;
-            let htmlDiff = `<tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/30"><td class="p-3 font-semibold text-left pl-4 text-gray-900 dark:text-white">Diff Semanal</td>`;
-
-            currencies.forEach(code => {
-                const curr = cotData.current[code];
-                const prev = cotData.previous[code];
-                const d = cotData.diff[code];
-
-                // Moeda ainda sem dados no data.json (ex.: contrato não encontrado no relatório CFTC)
-                if (curr === undefined) {
-                    htmlValue += `<td class="p-3 text-gray-400">-</td>`;
-                    htmlPrev += `<td class="p-3 text-gray-400">-</td>`;
-                    htmlDiff += `<td class="p-3 text-gray-400">-</td>`;
-                    return;
-                }
-
-                const valClass = curr >= 0
-                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold'
-                    : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold';
-
-                const diffClass = d >= 0
-                    ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
-                    : 'text-rose-600 dark:text-rose-400 font-semibold';
-
-                htmlValue += `<td class="p-3 ${valClass}">${curr}</td>`;
-                htmlPrev += `<td class="p-3 text-gray-500 dark:text-gray-400">${prev}</td>`;
-                htmlDiff += `<td class="p-3 ${diffClass}">${d > 0 ? '+' : ''}${d}</td>`;
-            });
-
-            htmlValue += `</tr>`;
-            htmlPrev += `</tr>`;
-            htmlDiff += `</tr>`;
-
-            tbody.innerHTML = htmlValue + htmlPrev + htmlDiff;
-        }
-
-        // Handle Active Currency Switch
-        function selectCurrency(code) {
-            currentCurrency = code;
-            document.getElementById('active-currency-title').innerText = code;
-            renderCurrencyControls();
-            renderHistoryTable();
-            renderChart();
-        }
-
-        // Update Button States
-        function renderCurrencyControls() {
-            document.querySelectorAll('.curr-selector-btn').forEach(btn => {
-                if (btn.innerText === currentCurrency) {
-                    btn.className = "curr-selector-btn flex-1 min-w-[60px] py-1 px-2 rounded text-xs font-bold text-center bg-blue-600 text-white shadow-sm";
-                } else {
-                    btn.className = "curr-selector-btn flex-1 min-w-[60px] py-1 px-2 rounded text-xs font-medium text-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition";
-                }
-            });
-        }
-
-        // Render Historical Table Side Panel
-        function renderHistoryTable() {
-            const tbody = document.getElementById('history-table-body');
-            const rawHistory = cotData.history[currentCurrency] || [];
-
-            // O data.json real só traz { date, val } — o diff semana a semana é calculado aqui
-            const withDiff = rawHistory.map((item, idx) => {
-                const diff = idx > 0 ? parseFloat((item.val - rawHistory[idx - 1].val).toFixed(1)) : 0;
-                return { date: item.date, value: item.val, diff };
-            });
-
-            const history = [...withDiff].reverse(); // Mais recente primeiro
-
-            document.getElementById('history-count').innerText = `${history.length} semanas`;
-
-            let html = '';
-            history.forEach(item => {
-                const valBg = item.value >= 0
-                    ? 'text-emerald-600 dark:text-emerald-400 font-medium'
-                    : 'text-rose-600 dark:text-rose-400 font-medium';
-
-                const diffBg = item.diff >= 0
-                    ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400'
-                    : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400';
-
-                html += `
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition">
-                        <td class="p-2.5 text-left pl-3 text-gray-500 dark:text-gray-400">${item.date}</td>
-                        <td class="p-2.5 ${valBg}">${item.value}</td>
-                        <td class="p-2.5 text-right pr-3"><span class="px-1.5 py-0.5 rounded ${diffBg}">${item.diff > 0 ? '+' : ''}${item.diff}</span></td>
+    <!-- SEÇÃO: VISÃO GERAL DAS MOEDAS -->
+    <div class="card p-4 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="m-0 text-white" style="font-size: 1.3rem;">Visão Geral das Moedas (Contratos K)</h3>
+            <span class="badge bg-success">Modo Online</span>
+        </div>
+        <p class="text-muted small">Resumo do relatório Non-Commercial Speculators mais recente</p>
+        
+        <div class="table-responsive">
+            <table class="table table-dark-custom table-hover m-0 align-middle">
+                <thead>
+                    <tr>
+                        <th>Indicador</th>
+                        <th>AUD</th><th>CAD</th><th>CHF</th><th>EUR</th><th>GBP</th><th>JPY</th><th>NZD</th><th>USD</th>
                     </tr>
-                `;
-            });
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Posicionamento Líquido:</strong></td>
+                        <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
 
-            tbody.innerHTML = html;
-        }
+    <!-- SEÇÃO: HISTÓRICO E GRÁFICOS DO COT -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-8">
+            <div class="card p-4 h-100">
+                <h3 class="text-white mb-2" style="font-size: 1.2rem;">Posicionamento Líquido COT: <span class="text-cyan" id="moeda-selecionada">AUD</span></h3>
+                <p class="text-muted small">Histórico do saldo líquido de contratos especulativos</p>
+                <div class="btn-group btn-group-sm mb-3" role="group">
+                    <button type="button" class="btn btn-outline-secondary">3M</button>
+                    <button type="button" class="btn btn-outline-secondary">6M</button>
+                    <button type="button" class="btn btn-outline-secondary">1Y</button>
+                    <button type="button" class="btn btn-outline-secondary active">Todos</button>
+                </div>
+                <div style="height: 300px; background: #161630; border-radius: 6px; display: flex; align-items: center; justify-content: center;" class="text-muted">
+                    Área do Gráfico do Relatório COT
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card p-4 h-100">
+                <h3 class="text-white mb-3" style="font-size: 1.2rem;">Histórico da Moeda</h3>
+                <p class="text-muted small">24 registros</p>
+                <div class="table-responsive" style="max-height: 290px;">
+                    <table class="table table-sm table-dark-custom text-center m-0">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Valor (K)</th>
+                                <th>Diff</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="3" class="text-muted small">Carregando dados...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        // Set Timeframe
-        function setTimeframe(tf) {
-            currentTimeframe = tf;
-            document.querySelectorAll('.tf-btn').forEach(btn => {
-                if (btn.getAttribute('data-tf') === tf) {
-                    btn.className = "tf-btn px-2.5 py-1 rounded-md transition bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm font-semibold";
-                } else {
-                    btn.className = "tf-btn px-2.5 py-1 rounded-md transition text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white";
-                }
-            });
-            renderChart();
-        }
+    <!-- CARD SPREAD ENTRE MOEDAS -->
+    <div class="card p-4 mb-4">
+        <h3 class="text-white mb-2" style="font-size: 1.2rem;">Spread entre Moedas (Força Relativa)</h3>
+        <p class="text-muted small">Diferença entre a posição líquida das duas moedas — útil para analisar um par cruzado (ex.: AUD/JPY)</p>
+        <div style="height: 250px; background: #161630; border-radius: 6px; display: flex; align-items: center; justify-content: center;" class="text-muted">
+            Área do Gráfico de Spread
+        </div>
+    </div>
 
-        // Render Line Chart
-        function renderChart() {
-            const ctx = document.getElementById('cotChart').getContext('2d');
-            let history = cotData.history[currentCurrency] || [];
 
-            // Filter history by Timeframe
-            if (currentTimeframe === '3M') history = history.slice(-12);
-            else if (currentTimeframe === '6M') history = history.slice(-26);
-            else if (currentTimeframe === '1Y') history = history.slice(-52);
-
-            const labels = history.map(item => item.date);
-            const values = history.map(item => item.val);
-
-            if (chartInstance) {
-                chartInstance.destroy();
-            }
-
-            const isDark = document.documentElement.classList.contains('dark');
-            const gridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
-            const textColor = isDark ? '#9ca3af' : '#4b5563';
-
-            chartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: `Posicionamento ${currentCurrency}`,
-                        data: values,
-                        borderColor: '#2563eb',
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        pointHoverRadius: 5,
-                        pointHoverBackgroundColor: '#2563eb',
-                        tension: 0.25,
-                        fill: false
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        intersect: false,
-                        mode: 'index',
-                    },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: isDark ? '#1f2937' : '#ffffff',
-                            titleColor: isDark ? '#ffffff' : '#111827',
-                            bodyColor: isDark ? '#cbd5e1' : '#334155',
-                            borderColor: isDark ? '#374151' : '#e2e8f0',
-                            borderWidth: 1,
-                            padding: 10,
-                            displayColors: false,
-                            callbacks: {
-                                label: function(context) {
-                                    const val = context.parsed.y;
-                                    const status = val >= 0 ? 'COMPRADO (Long)' : 'VENDIDO (Short)';
-                                    return `Posição Líquida: ${val}K (${status})`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            grid: { color: gridColor },
-                            ticks: { color: textColor, font: { size: 10 }, maxRotation: 45 }
-                        },
-                        y: {
-                            grid: {
-                                color: (context) => context.tick.value === 0
-                                    ? (isDark ? 'rgba(239, 68, 68, 0.8)' : 'rgba(220, 38, 38, 0.8)')
-                                    : gridColor,
-                                lineWidth: (context) => context.tick.value === 0 ? 1.5 : 1
-                            },
-                            ticks: { color: textColor, font: { size: 10 } }
-                        }
-                    }
-                }
-            });
-        }
-
-        // Preenche os dois seletores de moeda do card de Spread,
-        // usando apenas moedas que realmente têm histórico no data.json.
-        // Padrão inicial: AUD (base) - JPY (contra).
-        function populateSpreadSelectors() {
-            const baseSelect = document.getElementById('spread-base-select');
-            const quoteSelect = document.getElementById('spread-quote-select');
-
-            // Já populado nesta sessão: não sobrescreve a escolha do usuário
-            if (baseSelect.options.length > 0) return;
-
-            const available = currencyOrder.filter(c => (cotData.history[c] || []).length > 0);
-
-            available.forEach(code => {
-                const optBase = document.createElement('option');
-                optBase.value = code;
-                optBase.innerText = code;
-                baseSelect.appendChild(optBase);
-
-                const optQuote = document.createElement('option');
-                optQuote.value = code;
-                optQuote.innerText = code;
-                quoteSelect.appendChild(optQuote);
-            });
-
-            baseSelect.value = available.includes('AUD') ? 'AUD' : available[0];
-            quoteSelect.value = available.includes('JPY') ? 'JPY' : (available[1] || available[0]);
-        }
-
-        // Calcula e desenha o spread (posição líquida da base menos a da contra)
-        // data a data, alinhando pelas datas em comum entre as duas séries.
-        function renderSpreadChart() {
-            if (!cotData) return;
-
-            const baseCode = document.getElementById('spread-base-select').value;
-            const quoteCode = document.getElementById('spread-quote-select').value;
-            if (!baseCode || !quoteCode) return;
-
-            const baseHistory = cotData.history[baseCode] || [];
-            const quoteHistory = cotData.history[quoteCode] || [];
-
-            const quoteMap = {};
-            quoteHistory.forEach(item => { quoteMap[item.date] = item.val; });
-
-            const spreadSeries = baseHistory
-                .filter(item => quoteMap[item.date] !== undefined)
-                .map(item => ({
-                    date: item.date,
-                    spread: parseFloat((item.val - quoteMap[item.date]).toFixed(1))
-                }));
-
-            const labels = spreadSeries.map(item => item.date);
-            const values = spreadSeries.map(item => item.spread);
-
-            const summaryEl = document.getElementById('spread-summary');
-            if (spreadSeries.length > 0) {
-                const latest = spreadSeries[spreadSeries.length - 1];
-                const leaning = latest.spread >= 0
-                    ? `<span class="text-emerald-600 dark:text-emerald-400 font-semibold">${baseCode} mais forte</span>`
-                    : `<span class="text-rose-600 dark:text-rose-400 font-semibold">${quoteCode} mais forte</span>`;
-                summaryEl.innerHTML = `Spread atual (${baseCode} − ${quoteCode}): <strong>${latest.spread > 0 ? '+' : ''}${latest.spread}K</strong> — ${leaning}`;
-            } else {
-                summaryEl.innerHTML = `Sem datas em comum entre ${baseCode} e ${quoteCode} para calcular o spread.`;
-            }
-
-            const ctx = document.getElementById('spreadChart').getContext('2d');
-            if (spreadChartInstance) {
-                spreadChartInstance.destroy();
-            }
-
-            const isDark = document.documentElement.classList.contains('dark');
-            const gridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
-            const textColor = isDark ? '#9ca3af' : '#4b5563';
-
-            spreadChartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: `Spread ${baseCode} - ${quoteCode}`,
-                        data: values,
-                        borderColor: '#a855f7',
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        pointHoverRadius: 5,
-                        pointHoverBackgroundColor: '#a855f7',
-                        tension: 0.25,
-                        fill: false
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        intersect: false,
-                        mode: 'index',
-                    },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: isDark ? '#1f2937' : '#ffffff',
-                            titleColor: isDark ? '#ffffff' : '#111827',
-                            bodyColor: isDark ? '#cbd5e1' : '#334155',
-                            borderColor: isDark ? '#374151' : '#e2e8f0',
-                            borderWidth: 1,
-                            padding: 10,
-                            displayColors: false,
-                            callbacks: {
-                                label: function(context) {
-                                    const val = context.parsed.y;
-                                    const leaning = val >= 0 ? `${baseCode} mais forte` : `${quoteCode} mais forte`;
-                                    return `Spread: ${val}K (${leaning})`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            grid: { color: gridColor },
-                            ticks: { color: textColor, font: { size: 10 }, maxRotation: 45 }
-                        },
-                        y: {
-                            grid: {
-                                color: (context) => context.tick.value === 0
-                                    ? (isDark ? 'rgba(239, 68, 68, 0.8)' : 'rgba(220, 38, 38, 0.8)')
-                                    : gridColor,
-                                lineWidth: (context) => context.tick.value === 0 ? 1.5 : 1
-                            },
-                            ticks: { color: textColor, font: { size: 10 } }
-                        }
-                    }
-                }
-            });
-        }
-
-        // Toggle Theme
-        const themeToggleBtn = document.getElementById('theme-toggle');
-        const themeIcon = document.getElementById('theme-icon');
-
-        themeToggleBtn.addEventListener('click', () => {
-            document.documentElement.classList.toggle('dark');
-            const isDark = document.documentElement.classList.contains('dark');
-            themeIcon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
-            if (chartInstance) renderChart();
-            if (spreadChartInstance) renderSpreadChart();
-        });
-
-        // Toggle GitHub Modal
-        function toggleGithubModal() {
-            document.getElementById('github-modal').classList.toggle('hidden');
-        }
-
-        // Initialize App on DOM Load
-        document.addEventListener('DOMContentLoaded', () => {
-            fetchCOTData();
-        });
-    </script>
-</body>
-</html>
+    <!-- ================================================================= -->
+    <!-- NOVO CARD INTEGRADO: ANÁLISE REAL-TIME DO METATRADER 5           -->
+    <!-- ================================================================= -->
+    <div class="card mb-4" style="background: #131326; border: 1px solid #00ffcc; padding: 20px;">
+        <div class="card-header border-0 bg-transparent p-0 mb-3 d-flex justify-content-between align-items-center">
+            <h3 class="card-title m-0" style="font-size: 1.25rem; font-weight: 600; color: #00ffcc; letter-spacing: 0.5px;">
+                ⚡ Momentum em Tempo Real (MetaTrader 5)
+            </h3>
+            <span id="mt5-status-badge" style="background: #ffaa00; color: #000; font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; font-weight: bold;">
+                Aguardando MT5...
+            </span>
+        </div>
+        
+        <div class="row g-3">
+            <!-- Coluna 1: Ativo e Preço -->
+            <div class="col-md-4">
+                <div style="background: #0b0b16; padding: 15px; border-radius: 6px; border-left: 4px solid #00ffcc; height: 100%;">
+                    <small style="color: #8888aa; text-transform: uppercase; font-size: 0.75rem; font-weight: bold; display: block; margin-bottom: 5px;">Ativo / Cotação</small>
+                    <div style="display: flex; align-items: baseline; gap: 10px;">
+                        <span id="mt5-ativo" style="font-size: 1.4rem; font-weight: bold; color: #ffffff;">XAUUSD</span>
+                        <span id="mt5-preco" style="font-size: 1.8rem; font-weight: bold; color: #00ffcc; font-family: monospace;">---</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Coluna 2: Força do ADX -->
+            <div class="col-md-4">
+                <div style="background: #0b0b16; padding: 15px; border-radius: 6px; border-left: 4px solid #ffcc00; height: 100%;">
+                    <small style="color: #8888aa; text-transform: uppercase; font-size: 0.75rem; font-weight: bold; display: block; margin-bottom: 5px;">Força da Tendência (ADX)</small>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span id="mt5-adx" style="font-size: 1.8rem; font-weight: bold; color: #ffcc00; font-family: monospace;">---</span>
+                        <small id="mt5-adx-msg" style="color: #aaaaaa; font-size: 0.85rem; font-weight: 500;">Calculando...</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Coluna 3: Direção do Fluxo -->
+            <div class="col-md-4">
+                <div style="background: #0b0b16; padding: 15px; border-radius: 6px; border-left: 4px solid #ff4444; height: 100%;">
